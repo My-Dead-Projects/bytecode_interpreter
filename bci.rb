@@ -6,6 +6,37 @@ DEBUG = File.open("debug.log", "w")
 #DEBUG = false
 
 ##
+# Controls debug output for parsing stage
+#
+DebugParse = false
+
+##
+# Controls debug output for executing stage
+#
+DebugExec = true
+
+##
+# Runs a block of code without warnings.
+#
+def silence_warnings(&block)
+  original_warn_level = $VERBOSE
+  $VERBOSE = nil
+  result = block.call
+  $VERBOSE = original_warn_level
+  result
+end
+
+##
+# Prevents any debugging if +DEBUG+ is not set
+#
+unless DEBUG
+  silence_warnings {
+    # run in silent mode becuase redefinition of constants will cause a warning.
+    DebugParse = DebugExec = false
+  }
+end
+
+##
 # Maintains the virtual machine which runs the bytecode.
 #
 module Runtime
@@ -34,7 +65,6 @@ module Runtime
     # @param val
     #
     def self.stor(reg, val)
-      DEBUG.puts "reg = #{reg.inspect}, val = #{val.inspect}" if DEBUG
       Runtime::VM.reg[reg] = val
     end
     
@@ -43,7 +73,6 @@ module Runtime
     # @param reg [Fixnum]
     #
     def self.debug(reg)
-      DEBUG.puts "reg = #{reg.inspect}" if DEBUG
       p Runtime::VM.reg[reg]
     end
     
@@ -53,7 +82,6 @@ module Runtime
     # @param rhr [Fixnum]
     #
     def self.mult(lhr, rhr)
-      DEBUG.puts "lhr = #{lhr.inspect}, rhr = #{rhr.inspect}"
       Runtime::VM.reg[lhr] = Runtime::VM.reg[lhr] * Runtime::VM.reg[rhr]
     end
   end
@@ -66,11 +94,6 @@ end
 RT = Runtime
 
 module Interpreter
-  
-  ##
-  # Padding for +debug:preprocess+ statements
-  #
-  DebugPreprocessPad = " "*20
   
   ##
   # Padding for +debug:parse+ statements
@@ -93,7 +116,6 @@ module Interpreter
       # @param pos [Fixnum] the position of the start of the comment in +line+
       # @return [String] the resulting line
       def self.comment(line, pos)
-        DEBUG.puts DebugPreprocessPad + "Stripped '#{line[pos..-1]}'" if DEBUG
         line[0, pos]
       end
     end
@@ -119,35 +141,44 @@ module Interpreter
   #
   def self.interpret(line, line_num = nil)
     
+    ##
+    # So far, just strips out comments.
+    #
     preprocess = lambda do
       index = 0
       line.each_char do |c|
         if Keychars.has_key? c
           line = Keychars[c].call(line, index)
-          DEBUG.puts DebugPreprocessPad + "Result: '#{line}'" if DEBUG
         end
         index += 1
       end
     end
     
+    ##
+    # Splits up the line into tokens, then resolves them into data that the
+    #   VM can use.
+    #
     parse = lambda do
-      DEBUG.puts DebugParsePad + "Split '#{line}'" if DEBUG
+      DEBUG.puts DebugParsePad + "Split '#{line}'" if DebugParse
       line = line.split
-      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DEBUG
-      DEBUG.puts DebugParsePad + "Resolve register names" if DEBUG
+      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
+      DEBUG.puts DebugParsePad + "Resolve register names" if DebugParse
       (1..line.length-1).each do |i|
         if line.length > 1 and line[i][0] == "r"
           line[i] = Integer(line[i][1..-1])
         end
       end
-      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DEBUG
-      DEBUG.puts DebugParsePad + "Resolve integer literals" if DEBUG
+      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
+      DEBUG.puts DebugParsePad + "Resolve integer literals" if DebugParse
       if line.length == 3 and line[2] =~ /[0-9]+/
         line[2] = Integer(line[2])
       end
-      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DEBUG
+      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
     end
     
+    ##
+    # Executes a single preprocessed, parsed line.
+    #
     exec = lambda do
       if line.length > 3
         raise StandardError, "Too many arguments for #{line[0]}"
@@ -162,17 +193,15 @@ module Interpreter
     
     line.chomp!
     begin
-      DEBUG.puts "debug:preprocess:" + line_num.to_s + ": '" + line + "'" if DEBUG
       preprocess.()
-      DEBUG.puts if DEBUG
       
-      DEBUG.puts "debug:parse:" + line_num.to_s + ": '" + line + "'" if DEBUG
+      DEBUG.puts "debug:parse:" + line_num.to_s + ": '" + line + "'" if DebugParse
       parse.()
-      DEBUG.puts if DEBUG
+      DEBUG.puts if DebugParse
       
-      DEBUG.puts "debug:exec:" + line_num.to_s + ": " + line.inspect if DEBUG
+      DEBUG.puts "debug:exec:" + line_num.to_s + ": " + line.inspect if DebugExec
       exec.()
-      DEBUG.puts if DEBUG
+      DEBUG.puts if DebugExec
     end
   end
 end
