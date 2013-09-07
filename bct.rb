@@ -1,45 +1,34 @@
 ##
-# True if in debug mode
+# Output streams
 #
-DEBUG = File.open("debug.log", "w")
+OUT = File.open("prog.bc", "w")
+DEBUG = File.open("prog.debug", "w")
 #DEBUG = STDOUT
-#DEBUG = false
 
 ##
 # Controls debug output for parsing stage
 #
-DebugParse = true
+DebugParse = false
 
 ##
-# Runs a block of code without warnings.
+# Controls debug output for encoding stage
 #
-def silence_warnings(&block)
-  original_warn_level = $VERBOSE
-  $VERBOSE = nil
-  result = block.call
-  $VERBOSE = original_warn_level
-  result
-end
-
-##
-# Prevents any debugging if +DEBUG+ is not set
-#
-unless DEBUG
-  silence_warnings {
-    # run in silent mode becuase redefinition of constants will cause a warning.
-    DebugParse = false
-  }
-end
+DebugEncode = true
 
 module Translator
   
   ##
   # Padding for +debug:parse+ statements
   #
-  DebugParsePad = " "*15
+  DebugParsePad = "#"+" "*16
   
   ##
-  # @api private
+  # Padding for +debug:encode+ statements
+  #
+  DebugEncodePad = "#"+" "*17
+  
+  ##
+  # Holds resources for preprocessing
   #
   module Preprocessor
     class Methods
@@ -66,6 +55,20 @@ module Translator
     #
     Keychars = {
       "#" => Methods.method(:comment)
+    }
+    
+  end
+  
+  module Encoder
+    
+    ##
+    # A +Hash<String, String>+ of instruction names to be mapped to their
+    #   associated +bc+ values.
+    #
+    Keywords = {
+      "stor" => 0x01,
+      "mult" => 0x13,
+      "debug"=> 0xf0
     }
     
   end
@@ -110,13 +113,29 @@ module Translator
       DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
     end
     
+    encode = lambda do
+      for tok in line
+        if tok.class == Fixnum
+          OUT.print tok.chr
+          DEBUG.print "0x%02d " % tok if DebugEncode
+        elsif tok.class == String
+          OUT.print Encoder::Keywords[tok].chr
+          DEBUG.print "0x%02d " % Encoder::Keywords[tok] if DebugEncode
+        end
+      end
+    end
+    
     line.chomp!
     begin
       preprocess.()
       
-      DEBUG.puts "debug:parse:" + line_num.to_s + ": '" + line + "'" if DebugParse
+      DEBUG.puts "# debug:parse:" + line_num.to_s + ": '" + line + "'" if DebugParse
       parse.()
       DEBUG.puts if DebugParse
+      
+      #DEBUG.puts "# debug:encode:" + line_num.to_s + ": #{line.inspect}" if DebugEncode
+      encode.()
+      1.times {DEBUG.puts} if DebugEncode and line.length > 0
     end
   end
 end
