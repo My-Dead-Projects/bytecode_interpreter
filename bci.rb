@@ -16,6 +16,16 @@ DebugParse = false
 DebugExec = true
 
 ##
+# Padding for +debug:parse+ statements
+#
+DebugParsePad = " "*15
+
+##
+# Padding for +debug:exec+ statements
+#
+DebugExecPad = " "*14
+
+##
 # Runs a block of code without warnings.
 #
 def silence_warnings(&block)
@@ -64,7 +74,8 @@ module Runtime
     # @param reg [Fixnum]
     # @param val
     #
-    def self.stor(reg, val)
+    def self.store(reg, val)
+      DEBUG.puts DebugExecPad + "Storing #{val} in r#{reg}" if DebugExec
       Runtime::VM.reg[reg] = val
     end
     
@@ -81,10 +92,18 @@ module Runtime
     # @param lhr [Fixnum]
     # @param rhr [Fixnum]
     #
-    def self.mult(lhr, rhr)
+    def self.multiply(lhr, rhr)
+      DEBUG.puts DebugExecPad + "Multiplying r#{lhr} (#{Runtime::VM.reg[lhr]}) x r#{rhr} (#{Runtime::VM.reg[rhr]})" if DebugExec
       Runtime::VM.reg[lhr] = Runtime::VM.reg[lhr] * Runtime::VM.reg[rhr]
+      DEBUG.puts DebugExecPad + "Result stored in r#{lhr} (#{Runtime::VM.reg[lhr]})" if DebugExec
     end
   end
+  
+  InstrCode = {
+  1  => Instruction.method(:store),
+  13 => Instruction.method(:multiply),
+  20 => Instruction.method(:debug)
+  }
   
 end
 
@@ -94,19 +113,8 @@ end
 RT = Runtime
 
 module Interpreter
-  
   ##
-  # Padding for +debug:parse+ statements
-  #
-  DebugParsePad = " "*15
-  
-  ##
-  # Padding for +debug:exec+ statements
-  #
-  DebugExecPad = " "*14
-  
-  ##
-  # @api private
+  # Holds resources for preprocessing.
   #
   module Preprocessor
     class Methods
@@ -119,22 +127,22 @@ module Interpreter
         line[0, pos]
       end
     end
+    
+    ##
+    # A +Hash<String, Method<String, Fixnum>>+ of key characters to be processed
+    #   before parsing.
+    #
+    # Keys should be single character +String+s.
+    #
+    # In the preprocess step, the line will be scanned for keys in +Keychars+.
+    # Upon locating one, the preprocessor will call the corresponding +Method+
+    #   for the key, passing in a +String+ representing the line,
+    #   and a +Fixnum+ representing the location at which the key was found.
+    #
+    Keychars = {
+      "#" => Preprocessor::Methods.method(:comment)
+    }
   end
-  
-  ##
-  # A +Hash<String, Method<String, Fixnum>>+ of key characters to be processed
-  #   before parsing.
-  #
-  # Keys should be single character +String+s.
-  #
-  # In the preprocess step, the line will be scanned for keys in +Keychars+.
-  # Upon locating one, the preprocessor will call the corresponding +Method+
-  #   for the key, passing in a +String+ representing the line,
-  #   and a +Fixnum+ representing the location at which the key was found.
-  #
-  Keychars = {
-    "#" => Preprocessor::Methods.method(:comment)
-  }
   
   ##
   # Interprets a single line of +bc+.
@@ -147,8 +155,8 @@ module Interpreter
     preprocess = lambda do
       index = 0
       line.each_char do |c|
-        if Keychars.has_key? c
-          line = Keychars[c].call(line, index)
+        if Preprocessor::Keychars.has_key? c
+          line = Preprocessor::Keychars[c].call(line, index)
         end
         index += 1
       end
@@ -162,16 +170,9 @@ module Interpreter
       DEBUG.puts DebugParsePad + "Split '#{line}'" if DebugParse
       line = line.split
       DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
-      DEBUG.puts DebugParsePad + "Resolve register names" if DebugParse
-      (1..line.length-1).each do |i|
-        if line.length > 1 and line[i][0] == "r"
-          line[i] = Integer(line[i][1..-1])
-        end
-      end
-      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
       DEBUG.puts DebugParsePad + "Resolve integer literals" if DebugParse
-      if line.length == 3 and line[2] =~ /[0-9]+/
-        line[2] = Integer(line[2])
+      line.each_index do |i|
+        line[i] = Integer(line[i])
       end
       DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
     end
@@ -183,11 +184,11 @@ module Interpreter
       if line.length > 3
         raise StandardError, "Too many arguments for #{line[0]}"
       elsif line.length == 3
-        Runtime::Instruction.method(line[0].to_sym).call(line[1], line[2])
+        Runtime::InstrCode[line[0]].call(line[1], line[2])
       elsif line.length == 2
-        Runtime::Instruction.method(line[0].to_sym).call(line[1])
+        Runtime::InstrCode[line[0]].call(line[1])
       elsif line.length == 1
-        Runtime::Instruction.method(line[0].to_sym).call
+        Runtime::InstrCode[line[0]].call
       end
     end
     
