@@ -1,7 +1,7 @@
 ##
 # test program
 #
-1 2 9  # stor r2 9  # store the integer value 5 in r2
-1 3 7  # stor r3 7  # store the integer value 7 in r3
-13 2 3 # mult r2 r3 # multiply 5 * 7, storing the result in r2
-20 2   # debug 2    # print the value of r2 as a Ruby object (Runtime::VM.reg[2].inspect)
+stor r2 9 # store the integer value 5 in r2
+stor r3 7 # store the integer value 7 in r3
+mult r2 r3 # multiply 5 * 7, storing the result in r2
+debug r2 # print the value of r2 as a Ruby object (Runtime::VM.reg[2].inspect)
