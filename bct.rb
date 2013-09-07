@@ -8,12 +8,7 @@ DEBUG = File.open("debug.log", "w")
 ##
 # Controls debug output for parsing stage
 #
-DebugParse = false
-
-##
-# Controls debug output for executing stage
-#
-DebugExec = true
+DebugParse = true
 
 ##
 # Runs a block of code without warnings.
@@ -32,78 +27,16 @@ end
 unless DEBUG
   silence_warnings {
     # run in silent mode becuase redefinition of constants will cause a warning.
-    DebugParse = DebugExec = false
+    DebugParse = false
   }
 end
 
-##
-# Maintains the virtual machine which runs the bytecode.
-#
-module Runtime
-  
-  ##
-  # The virtual machine which runs the bytecode.
-  #
-  module VM
-    @reg = [].fill(0, 0..15)
-    def self.reg
-      @reg
-    end
-    def self.reg=(r)
-      @reg = r
-    end
-    
-  end
-  
-  ##
-  # Contains methods corresponding to +bc+ instructions.
-  #
-  module Instruction
-    ##
-    # Stores +val+ in +reg+.
-    # @param reg [Fixnum]
-    # @param val
-    #
-    def self.stor(reg, val)
-      Runtime::VM.reg[reg] = val
-    end
-    
-    ##
-    # Prints the value of register +reg+.
-    # @param reg [Fixnum]
-    #
-    def self.debug(reg)
-      p Runtime::VM.reg[reg]
-    end
-    
-    ##
-    # Multiplies +lhr+ by +rhr+ and stores the result in +lhr+.
-    # @param lhr [Fixnum]
-    # @param rhr [Fixnum]
-    #
-    def self.mult(lhr, rhr)
-      Runtime::VM.reg[lhr] = Runtime::VM.reg[lhr] * Runtime::VM.reg[rhr]
-    end
-  end
-  
-end
-
-##
-# Alias of +Runtime+
-#
-RT = Runtime
-
-module Interpreter
+module Translator
   
   ##
   # Padding for +debug:parse+ statements
   #
   DebugParsePad = " "*15
-  
-  ##
-  # Padding for +debug:exec+ statements
-  #
-  DebugExecPad = " "*14
   
   ##
   # @api private
@@ -137,12 +70,12 @@ module Interpreter
   }
   
   ##
-  # Interprets a single line of +bc+.
+  # Translates a single line of +bc+.
   #
-  def self.interpret(line, line_num = nil)
+  def self.translate(line, line_num = nil)
     
     ##
-    # So far, just strips out comments.
+    # Strips out comments.
     #
     preprocess = lambda do
       index = 0
@@ -155,8 +88,8 @@ module Interpreter
     end
     
     ##
-    # Splits up the line into tokens, then resolves them into data that the
-    #   VM can use.
+    # Splits up the line into tokens, then resolves them into raw data and
+    #   +bc+ instructions.
     #
     parse = lambda do
       DEBUG.puts DebugParsePad + "Split '#{line}'" if DebugParse
@@ -170,25 +103,10 @@ module Interpreter
       end
       DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
       DEBUG.puts DebugParsePad + "Resolve integer literals" if DebugParse
-      if line.length == 3 and line[2] =~ /[0-9]+/
-        line[2] = Integer(line[2])
+      (1..line.length-1).each do |i|
+        line[i] = Integer(line[i])
       end
       DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
-    end
-    
-    ##
-    # Executes a single preprocessed, parsed line.
-    #
-    exec = lambda do
-      if line.length > 3
-        raise StandardError, "Too many arguments for #{line[0]}"
-      elsif line.length == 3
-        Runtime::Instruction.method(line[0].to_sym).call(line[1], line[2])
-      elsif line.length == 2
-        Runtime::Instruction.method(line[0].to_sym).call(line[1])
-      elsif line.length == 1
-        Runtime::Instruction.method(line[0].to_sym).call
-      end
     end
     
     line.chomp!
@@ -198,10 +116,6 @@ module Interpreter
       DEBUG.puts "debug:parse:" + line_num.to_s + ": '" + line + "'" if DebugParse
       parse.()
       DEBUG.puts if DebugParse
-      
-      DEBUG.puts "debug:exec:" + line_num.to_s + ": " + line.inspect if DebugExec
-      exec.()
-      DEBUG.puts if DebugExec
     end
   end
 end
@@ -212,6 +126,6 @@ end
 if __FILE__ == $0
   iter = 0
   ARGF.each_line do |line|
-    Interpreter.interpret(line, iter+=1)
+    Translator.translate(line, iter+=1)
   end
 end
