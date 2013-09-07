@@ -52,22 +52,23 @@ module Translator
         line[0, pos]
       end
     end
+    
+    ##
+    # A +Hash<String, Method<String, Fixnum>>+ of key characters to be processed
+    #   before parsing.
+    #
+    # Keys should be single character +String+s.
+    #
+    # In the preprocess step, the line will be scanned for keys in +Keychars+.
+    # Upon locating one, the preprocessor will call the corresponding +Method+
+    #   for the key, passing in a +String+ representing the line,
+    #   and a +Fixnum+ representing the location at which the key was found.
+    #
+    Keychars = {
+      "#" => Methods.method(:comment)
+    }
+    
   end
-  
-  ##
-  # A +Hash<String, Method<String, Fixnum>>+ of key characters to be processed
-  #   before parsing.
-  #
-  # Keys should be single character +String+s.
-  #
-  # In the preprocess step, the line will be scanned for keys in +Keychars+.
-  # Upon locating one, the preprocessor will call the corresponding +Method+
-  #   for the key, passing in a +String+ representing the line,
-  #   and a +Fixnum+ representing the location at which the key was found.
-  #
-  Keychars = {
-    "#" => Preprocessor::Methods.method(:comment)
-  }
   
   ##
   # Translates a single line of +bc+.
@@ -80,8 +81,8 @@ module Translator
     preprocess = lambda do
       index = 0
       line.each_char do |c|
-        if Keychars.has_key? c
-          line = Keychars[c].call(line, index)
+        if Preprocessor::Keychars.has_key? c
+          line = Preprocessor::Keychars[c].call(line, index)
         end
         index += 1
       end
