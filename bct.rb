@@ -68,7 +68,7 @@ module Translator
     Keywords = {
       "stor" => 0x01,
       "mult" => 0x13,
-      "debug"=> 0xf0
+      "debug"=> 0x60
     }
     
   end
