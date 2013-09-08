@@ -117,10 +117,10 @@ module Translator
       for tok in line
         if tok.class == Fixnum
           OUT.print tok.chr
-          DEBUG.print "0x%02d " % tok if DebugEncode
+          DEBUG.print "0x%02x " % tok if DebugEncode
         elsif tok.class == String
           OUT.print Encoder::Keywords[tok].chr
-          DEBUG.print "0x%02d " % Encoder::Keywords[tok] if DebugEncode
+          DEBUG.print "0x%02x " % Encoder::Keywords[tok] if DebugEncode
         end
       end
     end
