@@ -1,24 +1,14 @@
 ##
 # True if in debug mode
 #
-DEBUG = File.open("debug.log", "w")
+DEBUG = File.open("exec.debug", "w")
 #DEBUG = STDOUT
 #DEBUG = false
-
-##
-# Controls debug output for parsing stage
-#
-DebugParse = false
 
 ##
 # Controls debug output for executing stage
 #
 DebugExec = true
-
-##
-# Padding for +debug:parse+ statements
-#
-DebugParsePad = " "*15
 
 ##
 # Padding for +debug:exec+ statements
@@ -68,23 +58,23 @@ module Runtime
   ##
   # Contains methods corresponding to +bc+ instructions.
   #
-  module Instruction
+  module Code
     ##
     # Stores +val+ in +reg+.
     # @param reg [Fixnum]
     # @param val
     #
-    def self.store(reg, val)
-      DEBUG.puts DebugExecPad + "Storing #{val} in r#{reg}" if DebugExec
-      Runtime::VM.reg[reg] = val
+    def self.store(arg)
+      DEBUG.puts DebugExecPad + "Storing #{arg[0]} in r#{arg[1]}" if DebugExec
+      Runtime::VM.reg[arg[0]] = arg[1]
     end
     
     ##
     # Prints the value of register +reg+.
     # @param reg [Fixnum]
     #
-    def self.debug(reg)
-      p Runtime::VM.reg[reg]
+    def self.debug(arg)
+      p Runtime::VM.reg[arg[0]]
     end
     
     ##
@@ -92,17 +82,19 @@ module Runtime
     # @param lhr [Fixnum]
     # @param rhr [Fixnum]
     #
-    def self.multiply(lhr, rhr)
-      DEBUG.puts DebugExecPad + "Multiplying r#{lhr} (#{Runtime::VM.reg[lhr]}) x r#{rhr} (#{Runtime::VM.reg[rhr]})" if DebugExec
-      Runtime::VM.reg[lhr] = Runtime::VM.reg[lhr] * Runtime::VM.reg[rhr]
-      DEBUG.puts DebugExecPad + "Result stored in r#{lhr} (#{Runtime::VM.reg[lhr]})" if DebugExec
+    def self.multiply(arg)
+      DEBUG.puts DebugExecPad + "Multiplying r#{arg[0]} (#{Runtime::VM.reg[arg[0]]}) x r#{arg[1]} (#{Runtime::VM.reg[arg[1]]})" if DebugExec
+      Runtime::VM.reg[arg[0]] = Runtime::VM.reg[arg[0]] * Runtime::VM.reg[arg[1]]
+      DEBUG.puts DebugExecPad + "Result stored in r#{arg[0]} (#{Runtime::VM.reg[arg[0]]})" if DebugExec
     end
   end
   
+  Struct.new "Instruction", :code, :args
+  
   InstrCode = {
-  1  => Instruction.method(:store),
-  13 => Instruction.method(:multiply),
-  20 => Instruction.method(:debug)
+  0x01 => Struct::Instruction.new(Code.method(:store), 2),
+  0x13 => Struct::Instruction.new(Code.method(:multiply), 2),
+  0x60 => Struct::Instruction.new(Code.method(:debug), 1)
   }
   
 end
@@ -113,97 +105,39 @@ end
 RT = Runtime
 
 module Interpreter
-  ##
-  # Holds resources for preprocessing.
-  #
-  module Preprocessor
-    class Methods
-      ##
-      # Strips out comments.
-      # @param line [String]
-      # @param pos [Fixnum] the position of the start of the comment in +line+
-      # @return [String] the resulting line
-      def self.comment(line, pos)
-        line[0, pos]
-      end
-    end
-    
-    ##
-    # A +Hash<String, Method<String, Fixnum>>+ of key characters to be processed
-    #   before parsing.
-    #
-    # Keys should be single character +String+s.
-    #
-    # In the preprocess step, the line will be scanned for keys in +Keychars+.
-    # Upon locating one, the preprocessor will call the corresponding +Method+
-    #   for the key, passing in a +String+ representing the line,
-    #   and a +Fixnum+ representing the location at which the key was found.
-    #
-    Keychars = {
-      "#" => Preprocessor::Methods.method(:comment)
-    }
-  end
+  
+  @insgr_code = nil if DebugExec
+  
+  @instr = nil
+  @args = []
   
   ##
   # Interprets a single line of +bc+.
   #
-  def self.interpret(line, line_num = nil)
+  def self.interpret(byte)
     
-    ##
-    # So far, just strips out comments.
-    #
-    preprocess = lambda do
-      index = 0
-      line.each_char do |c|
-        if Preprocessor::Keychars.has_key? c
-          line = Preprocessor::Keychars[c].call(line, index)
+    if @instr == nil
+      @instr = RT::InstrCode[byte]
+      @instr_code = byte if DebugExec
+    else
+      @args.push byte
+    end
+    
+    if @instr.args == @args.length
+      if DebugExec
+        DEBUG.print "debug:exec: 0x%02x " % @instr_code
+        for arg in @args
+          DEBUG.print "0x%02x " % arg
         end
-        index += 1
+        DEBUG.puts
       end
-    end
-    
-    ##
-    # Splits up the line into tokens, then resolves them into data that the
-    #   VM can use.
-    #
-    parse = lambda do
-      DEBUG.puts DebugParsePad + "Split '#{line}'" if DebugParse
-      line = line.split
-      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
-      DEBUG.puts DebugParsePad + "Resolve integer literals" if DebugParse
-      line.each_index do |i|
-        line[i] = Integer(line[i])
-      end
-      DEBUG.puts DebugParsePad + "Result: " + line.inspect if DebugParse
-    end
-    
-    ##
-    # Executes a single preprocessed, parsed line.
-    #
-    exec = lambda do
-      if line.length > 3
-        raise StandardError, "Too many arguments for #{line[0]}"
-      elsif line.length == 3
-        Runtime::InstrCode[line[0]].call(line[1], line[2])
-      elsif line.length == 2
-        Runtime::InstrCode[line[0]].call(line[1])
-      elsif line.length == 1
-        Runtime::InstrCode[line[0]].call
-      end
-    end
-    
-    line.chomp!
-    begin
-      preprocess.()
+      @instr.code.call(@args)
       
-      DEBUG.puts "debug:parse:" + line_num.to_s + ": '" + line + "'" if DebugParse
-      parse.()
-      DEBUG.puts if DebugParse
+      @instr = nil
+      @args = []
       
-      DEBUG.puts "debug:exec:" + line_num.to_s + ": " + line.inspect if DebugExec
-      exec.()
-      DEBUG.puts if DebugExec
     end
+    
   end
 end
 
@@ -211,8 +145,7 @@ end
 # Program driver.
 #
 if __FILE__ == $0
-  iter = 0
-  ARGF.each_line do |line|
-    Interpreter.interpret(line, iter+=1)
+  ARGF.each_byte do |byte|
+    Interpreter.interpret(byte)
   end
 end
