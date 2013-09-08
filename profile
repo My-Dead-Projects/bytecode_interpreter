@@ -5,4 +5,6 @@ git config --global alias.l "log --oneline --graph"
 git config --global alias.c "commit -m"
 git config --global push.default simple
 
-alias run="ruby bci.rb < prog.bc"
+alias bct="ruby bct.rb < prog.asm"
+alias bci="ruby bci.rb < prog.bc"
+alias run="bct; bci"
