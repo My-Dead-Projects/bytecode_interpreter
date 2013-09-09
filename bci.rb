@@ -66,7 +66,7 @@ module Runtime
     #
     def self.store(arg)
       DEBUG.puts DebugExecPad + "Storing #{arg[0]} in r#{arg[1]}" if DebugExec
-      Runtime::VM.reg[arg[0]] = arg[1]
+      RT::VM.reg[arg[0]] = arg[1]
     end
     
     ##
@@ -74,7 +74,7 @@ module Runtime
     # @param reg [Fixnum]
     #
     def self.debug(arg)
-      p Runtime::VM.reg[arg[0]]
+      p RT::VM.reg[arg[0]]
     end
     
     ##
@@ -83,9 +83,9 @@ module Runtime
     # @param rhr [Fixnum]
     #
     def self.multiply(arg)
-      DEBUG.puts DebugExecPad + "Multiplying r#{arg[0]} (#{Runtime::VM.reg[arg[0]]}) x r#{arg[1]} (#{Runtime::VM.reg[arg[1]]})" if DebugExec
-      Runtime::VM.reg[arg[0]] = Runtime::VM.reg[arg[0]] * Runtime::VM.reg[arg[1]]
-      DEBUG.puts DebugExecPad + "Result stored in r#{arg[0]} (#{Runtime::VM.reg[arg[0]]})" if DebugExec
+      DEBUG.puts DebugExecPad + "Multiplying r#{arg[0]} (#{RT::VM.reg[arg[0]]}) x r#{arg[1]} (#{RT::VM.reg[arg[1]]})" if DebugExec
+      RT::VM.reg[arg[0]] = RT::VM.reg[arg[0]] * RT::VM.reg[arg[1]]
+      DEBUG.puts DebugExecPad + "Result stored in r#{arg[0]} (#{RT::VM.reg[arg[0]]})" if DebugExec
     end
   end
   
